@@ -6,16 +6,33 @@ import java.util.ArrayList;
 
 public class ExcelFileConverter {
 
+    public boolean isConvertedFileExists(ArrayList<File> files, String routerID) {
+        String sourceFolderPath = files.get(0).getPath().substring(0, files.get(0).getPath().lastIndexOf("\\") + 1);
+        String destinationFilePathXLS = sourceFolderPath + "Router_" + routerID + ".xls";
+        File file = new File(destinationFilePathXLS);
+        if (file.exists()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 
-    public void convert(ArrayList<String> filePaths) throws IOException {
-        String sourceFolderPath = filePaths.get(0).substring(0, filePaths.get(0).lastIndexOf("/") + 1);
-        String destinationFilePathXLS = sourceFolderPath + "combinedFile.xls";
-        ArrayList<Sheet> sheets = initSheets(filePaths);
+    public void convert(ArrayList<File> files, String routerID) throws IOException {
+        String sourceFolderPath = files.get(0).getPath().substring(0, files.get(0).getPath().lastIndexOf("\\") + 1);
+        String destinationFilePathXLS = sourceFolderPath + "Router_" + routerID + ".xls";
+        String destinationFilePathPortsInfoXLS = sourceFolderPath + "Router_" + routerID + "_ports_info.xls";
+        ArrayList<Sheet> sheets = initSheets(files);
         OutputStream fileOutputStream = null;
         try {
             fileOutputStream = new FileOutputStream(destinationFilePathXLS);
             Workbook workbook = combineContentsFromAllSheets(sheets);
             workbook.write(fileOutputStream);
+            fileOutputStream.close();
+
+            fileOutputStream = new FileOutputStream(destinationFilePathPortsInfoXLS);
+            workbook = getPortsInfoFromAllSheets(sheets);
+            workbook.write(fileOutputStream);
+            fileOutputStream.close();
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -26,12 +43,12 @@ public class ExcelFileConverter {
         converterCSV.convertExcelToCSV(destinationFilePathXLS, sourceFolderPath);
     }
 
-    private ArrayList<Sheet> initSheets(ArrayList<String> filePaths) throws IOException {
+    private ArrayList<Sheet> initSheets(ArrayList<File> files) throws IOException {
         ArrayList<Sheet> sheets = new ArrayList<>();
         InputStream fileInputStream = null;
         try {
-            for (String filePath : filePaths) {
-                fileInputStream = new FileInputStream(filePath);
+            for (File file : files) {
+                fileInputStream = new FileInputStream(file);
                 Workbook workbook = WorkbookFactory.create(fileInputStream);
                 Sheet sheet = workbook.getSheetAt(0);
                 sheets.add(sheet);
@@ -66,7 +83,7 @@ public class ExcelFileConverter {
         for (Sheet sheet : sheets) {
             portNumber++;
             int contentRangeBeginPosition = 1;
-            while (sheet.getRow(contentRangeBeginPosition).getCell(0).toString().isEmpty()) contentRangeBeginPosition++;
+            while (sheet.getRow(contentRangeBeginPosition) == null) contentRangeBeginPosition++;
             contentRangeBeginPosition += 2;
             while (sheet.getRow(contentRangeBeginPosition) != null) {
                 String meterType = sheet.getRow(contentRangeBeginPosition).getCell(1).getStringCellValue();
@@ -101,8 +118,45 @@ public class ExcelFileConverter {
     private String modifyMeterConnectionPoint(String meterConnectionPoint) {
         String modified = meterConnectionPoint;
         modified = modified.substring(modified.indexOf("\\") + 1);
-
-        return modified;
+        String pointConnection = modified.substring(modified.lastIndexOf("\\") + 1);
+        if (String.valueOf(pointConnection.charAt(0)).matches("[0-9]")) {
+            pointConnection = "кв. " + pointConnection;
+        }
+        return pointConnection;
     }
 
+    private Workbook getPortsInfoFromAllSheets(ArrayList<Sheet> sheets) {
+        Workbook workbook = new HSSFWorkbook();
+        Sheet combinedContentSheet = workbook.createSheet("ports_info");
+        int rowNumber = 0;
+        Row row = combinedContentSheet.createRow(rowNumber);
+        row.createCell(0).setCellValue("PortNumber");
+        row.createCell(1).setCellValue("BuildingAddress");
+        rowNumber++;
+        int portNumber = 0;
+        for (Sheet sheet : sheets) {
+            portNumber++;
+            int contentRangeBeginPosition = 1;
+            while (sheet.getRow(contentRangeBeginPosition) == null) contentRangeBeginPosition++;
+            contentRangeBeginPosition += 2;
+            String meterConnectionPointFull = getAddress(sheet.getRow(contentRangeBeginPosition).getCell(3).getStringCellValue());
+            row = combinedContentSheet.createRow(rowNumber);
+            row.createCell(0).setCellValue(portNumber);
+            row.createCell(1).setCellValue(meterConnectionPointFull);
+            rowNumber++;
+        }
+        return workbook;
+    }
+
+    private String getAddress(String meterConnectionPointFull) {
+        int indexPosition = meterConnectionPointFull.indexOf("\\п ");
+        if (indexPosition == -1) {
+            indexPosition = meterConnectionPointFull.indexOf("\\эт ");
+        }
+        if (indexPosition == -1) {
+            indexPosition = meterConnectionPointFull.lastIndexOf("\\");
+        }
+        meterConnectionPointFull = meterConnectionPointFull.substring(0, indexPosition);
+        return meterConnectionPointFull;
+    }
 }
