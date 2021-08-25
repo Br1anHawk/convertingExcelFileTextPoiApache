@@ -32,7 +32,7 @@ public class Dialog extends JDialog {
         getRootPane().setDefaultButton(buttonOK);
 
         panelOKCancelButtons.setVisible(false);
-        labelDefaultDirectory.setText("S:\\programming"); //FOR_DEBUGGING_ONLY!
+        //labelDefaultDirectory.setText("S:\\programming"); //FOR_DEBUGGING_ONLY!
 
         initModelForJTable();
 
@@ -158,7 +158,19 @@ public class Dialog extends JDialog {
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
 
-
+        tableOfSelectedFiles.addContainerListener(new ContainerAdapter() {
+            @Override
+            public void componentAdded(ContainerEvent e) {
+                super.componentAdded(e);
+                if (files.isEmpty()) {
+                    textFieldRouterID.setText("");
+                    return;
+                }
+                String fileName = files.get(0).getName();
+                String routerId = fileName.substring(0, fileName.indexOf(" "));
+                textFieldRouterID.setText(routerId);
+            }
+        });
     }
 
     private void moveRowsBy(int moveBy) {
